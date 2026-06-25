@@ -67,6 +67,64 @@
             cursor: pointer;
             padding: 5px 10px;
         }
+        .layer-switcher {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+        }
+        .layer-btn {
+            padding: 10px 15px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .layer-btn:hover {
+            background: #f8f8f8;
+        }
+        .layer-menu {
+            position: absolute;
+            top: 45px;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            width: 200px;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .layer-menu.open {
+            display: flex;
+        }
+        .layer-option {
+            padding: 12px 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .layer-option:last-child {
+            border-bottom: none;
+        }
+        .layer-option:hover {
+            background: #f0f7ff;
+        }
+        .layer-option.active {
+            background: #e0f0ff;
+            color: #007bff;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -85,25 +143,86 @@
         </div>
     </div>
 
+    <div class="layer-switcher">
+        <button class="layer-btn" onclick="toggleLayerMenu()">🗺️ Слои</button>
+        <div class="layer-menu" id="layer-menu">
+            <div class="layer-option active" onclick="setLayer('osm')">🗺️ Стандартная</div>
+            <div class="layer-option" onclick="setLayer('satellite')">🛰️ Спутник</div>
+            <div class="layer-option" onclick="setLayer('terrain')">⛰️ Рельеф</div>
+        </div>
+    </div>
+
     <div id="map"></div>
 
     <!-- OpenLayers JS -->
     <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
 
     <script>
+        // Layers definition
+        const layers = {
+            osm: new ol.layer.Tile({
+                source: new ol.source.OSM(),
+                visible: true
+            }),
+            satellite: new ol.layer.Tile({
+                source: new ol.source.XYZ({
+                    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                }),
+                visible: false
+            }),
+            terrain: new ol.layer.Tile({
+                source: new ol.source.XYZ({
+                    url: 'https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png'
+                }),
+                visible: false
+            })
+        };
+
         // Map initialization
         const map = new ol.Map({
             target: 'map',
-            layers: [
-                new ol.layer.Tile({
-                    source: new ol.source.OSM()
-                })
-            ],
+            layers: Object.values(layers),
             view: new ol.View({
                 center: ol.proj.fromLonLat([37.6173, 55.7558]),
                 zoom: 10
             })
         });
+
+        function toggleLayerMenu() {
+            const menu = document.getElementById('layer-menu');
+            menu.classList.toggle('open');
+        }
+
+        function setLayer(layerId) {
+            // Set all layers to invisible
+            Object.keys(layers).forEach(id => {
+                layers[id].setVisible(false);
+            });
+            
+            // Set selected layer to visible
+            layers[layerId].setVisible(true);
+            
+            // Update active class in menu
+            const options = document.querySelectorAll('.layer-option');
+            options.forEach(opt => {
+                opt.classList.remove('active');
+                if (opt.innerText.includes(getLayerName(layerId))) {
+                    opt.classList.add('active');
+                }
+            });
+            
+            // Close menu
+            toggleLayerMenu();
+        }
+
+        function getLayerName(id) {
+            const names = {
+                osm: 'Стандартная',
+                satellite: 'Спутник',
+                terrain: 'Рельеф'
+            };
+            return names[id];
+        }
 
         // Vector source for markers and routes
         const vectorSource = new ol.source.Vector();
@@ -210,14 +329,6 @@
                             routeFeature.setStyle(new ol.style.Style({
                                 stroke: new ol.style.Stroke({
                                     color: color,
-                                    width: 5,
-                                    lineDash: [10, 10] // Optional: make it dashed to distinguish from markers
-                                })
-                            }));
-                            // Overriding the lineDash to be solid as per original Leaflet style
-                            routeFeature.setStyle(new ol.style.Style({
-                                stroke: new ol.style.Stroke({
-                                    color: color,
                                     width: 5
                                 })
                             }));
@@ -251,9 +362,9 @@
                 updateRoute();
             }
         });
-        
-        // Wait, the above map.on('singleclick') will conflict. 
-        // Let's refine the click handler.
+
+        // Initial render
+        renderDaysList();
     </script>
 </body>
 </html>
