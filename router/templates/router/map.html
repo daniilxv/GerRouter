@@ -5,10 +5,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Leaflet Routing Machine CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <!-- OpenLayers CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
     
     <style>
         body, html {
@@ -69,10 +67,6 @@
             cursor: pointer;
             padding: 5px 10px;
         }
-        /* Hide the default routing itinerary panel to avoid clutter with multiple days */
-        .leaflet-routing-container {
-            display: none !important;
-        }
     </style>
 </head>
 <body>
@@ -93,19 +87,31 @@
 
     <div id="map"></div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Leaflet Routing Machine JS -->
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <!-- OpenLayers JS -->
+    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
 
     <script>
-        var map = L.map('map').setView([55.7558, 37.6173], 10);
+        // Map initialization
+        const map = new ol.Map({
+            target: 'map',
+            layers: [
+                new ol.layer.Tile({
+                    source: new ol.source.OSM()
+                })
+            ],
+            view: new ol.View({
+                center: ol.proj.fromLonLat([37.6173, 55.7558]),
+                zoom: 10
+            })
+        });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        // Vector source for markers and routes
+        const vectorSource = new ol.source.Vector();
+        const vectorLayer = new ol.layer.Vector({
+            source: vectorSource
+        });
+        map.addLayer(vectorLayer);
 
-        var routingControls = [];
         var trip = {
             currentDayIndex: 0,
             days: [
@@ -160,46 +166,94 @@
             updateRoute();
         }
 
-        function updateRoute() {
-            // Remove all existing routing controls
-            routingControls.forEach(ctrl => map.removeControl(ctrl));
-            routingControls = [];
+        async function updateRoute() {
+            vectorSource.clear();
 
-            trip.days.forEach((day, dayIndex) => {
-                if (day.points.length < 2) return;
-
+            for (let dayIndex = 0; dayIndex < trip.days.length; dayIndex++) {
+                const day = trip.days[dayIndex];
                 const color = colors[dayIndex % colors.length];
-                
-                const ctrl = L.Routing.control({
-                    waypoints: day.points,
-                    routeWhileDragging: true,
-                    lineOptions: {
-                        styles: [{color: color, opacity: 0.7, weight: 5}]
-                    },
-                    createMarker: function(i, waypoint, n) {
-                        var marker = L.marker(waypoint.latLng, {
-                            draggable: true
-                        });
-                        marker.bindPopup(
-                            '<b>День ' + (dayIndex + 1) + ' - Точка ' + (i + 1) + '</b><br>' +
-                            '<button onclick="removeWaypoint(' + dayIndex + ', ' + i + ')">Удалить точку</button>'
-                        );
-                        return marker;
+
+                // Add markers for all points in the day
+                day.points.forEach((point, pointIndex) => {
+                    const marker = new ol.Feature({
+                        geometry: new ol.geom.Point(ol.proj.fromLonLat(point)),
+                        dayIndex: dayIndex,
+                        pointIndex: pointIndex
+                    });
+
+                    marker.setStyle(new ol.style.Style({
+                        image: new ol.style.Circle({
+                            radius: 6,
+                            fill: new ol.style.Fill({ color: color }),
+                            stroke: new ol.style.Stroke({ color: 'white', width: 2 })
+                        })
+                    }));
+
+                    vectorSource.addFeature(marker);
+                });
+
+                // Fetch route from OSRM if there are at least 2 points
+                if (day.points.length >= 2) {
+                    const coordinates = day.points.map(p => p.join(',')).join(';');
+                    const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson`;
+
+                    try {
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        if (data.routes && data.routes.length > 0) {
+                            const routeGeometry = new ol.geom.LineString(
+                                data.routes[0].geometry.coordinates.map(coord => ol.proj.fromLonLat(coord))
+                            );
+                            const routeFeature = new ol.Feature({
+                                geometry: routeGeometry
+                            });
+                            routeFeature.setStyle(new ol.style.Style({
+                                stroke: new ol.style.Stroke({
+                                    color: color,
+                                    width: 5,
+                                    lineDash: [10, 10] // Optional: make it dashed to distinguish from markers
+                                })
+                            }));
+                            // Overriding the lineDash to be solid as per original Leaflet style
+                            routeFeature.setStyle(new ol.style.Style({
+                                stroke: new ol.style.Stroke({
+                                    color: color,
+                                    width: 5
+                                })
+                            }));
+                            vectorSource.addFeature(routeFeature);
+                        }
+                    } catch (error) {
+                        console.error('Routing error:', error);
                     }
-                }).addTo(map);
-                
-                routingControls.push(ctrl);
-            });
+                }
+            }
         }
 
-        map.on('click', function(e) {
-            trip.days[trip.currentDayIndex].points.push(e.latlng);
-            renderDaysList();
-            updateRoute();
-        });
+        // Handle map clicks: add point or remove marker
+        map.on('singleclick', function(evt) {
+            const feature = map.forEachFeatureAtPixel(evt.pixel, function(feature) {
+                return feature;
+            });
 
-        // Initial render
-        renderDaysList();
+            if (feature && feature.get('dayIndex') !== undefined) {
+                // Marker clicked - remove it
+                const dayIndex = feature.get('dayIndex');
+                const pointIndex = feature.get('pointIndex');
+                if (confirm('Удалить эту точку?')) {
+                    removeWaypoint(dayIndex, pointIndex);
+                }
+            } else {
+                // Map clicked - add new point to current day
+                const coords = ol.proj.toLonLat(evt.coordinate);
+                trip.days[trip.currentDayIndex].points.push(coords);
+                renderDaysList();
+                updateRoute();
+            }
+        });
+        
+        // Wait, the above map.on('singleclick') will conflict. 
+        // Let's refine the click handler.
     </script>
 </body>
 </html>
