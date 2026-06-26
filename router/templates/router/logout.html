@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Выход</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f0f2f5; }
+        .auth-container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; text-align: center; }
+        h2 { color: #333; }
+        .footer { margin-top: 1rem; font-size: 0.9rem; }
+        .footer a { color: #007bff; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h2>Вы вышли из системы</h2>
+        <div class="footer">
+            <a href="{% url 'login' %}">Войти снова</a>
+        </div>
+    </div>
+</body>
+</html>

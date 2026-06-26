@@ -9,6 +9,32 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
     
     <style>
+        .auth-header {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: sans-serif;
+        }
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .logout-btn:hover {
+            background: #c82333;
+        }
         body, html {
             margin: 0;
             padding: 0;
@@ -128,6 +154,14 @@
     </style>
 </head>
 <body>
+    <div class="auth-header">
+        <a href="{% url 'trips' %}" style="text-decoration: none; color: #007bff; font-weight: bold; margin-right: 10px;">Мои путешествия</a>
+        <span>Привет, <strong>{{ user.username }}</strong>!</span>
+        <form action="{% url 'logout' %}" method="post" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="logout-btn">Выйти</button>
+        </form>
+    </div>
 
     <div class="info-panel">
         <b>🌍 GeoRouter: Планировщик путешествий</b><br>
@@ -147,9 +181,14 @@
             <button onclick="clearTrip()">🗑️ Очистить всё</button>
             <hr style="width: 100%; margin: 10px 0;">
             <button onclick="saveTrip()" style="background: #28a745; color: white; border: none; font-weight: bold;">💾 Сохранить</button>
-            <div style="display: flex; gap: 5px; margin-top: 5px;">
-                <input type="number" id="load-trip-id" placeholder="ID" style="width: 60px; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
-                <button onclick="loadTrip()" style="flex-grow: 1;">📂 Загрузить</button>
+            <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 5px;">
+                <label style="font-size: 0.8em; color: #666;">Мои путешествия:</label>
+                <select id="trip-selector" onchange="loadTrip()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                    <option value="">-- Новое путешествие --</option>
+                    {% for trip in trips %}
+                        <option value="{{ trip.id }}">{{ trip.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
         </div>
     </div>
@@ -251,6 +290,7 @@
         map.addLayer(vectorLayer);
 
         var trip = {
+            id: null,
             currentDayIndex: 0,
             days: [
                 { points: [], distance: 0 }
@@ -293,6 +333,7 @@
         }
 
         function clearTrip() {
+            trip.id = null;
             trip.days = [{ points: [], distance: 0 }];
             trip.currentDayIndex = 0;
             renderDaysList();
@@ -404,9 +445,20 @@
         // Initial render
         renderDaysList();
 
+        // Auto-load trip from URL query parameter
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tripId = urlParams.get('trip_id');
+            if (tripId) {
+                document.getElementById('trip-selector').value = tripId;
+                loadTrip();
+            }
+        });
+
         async function saveTrip() {
             const name = document.getElementById('trip-name').value || 'Моё путешествие';
             const tripData = {
+                id: trip.id,
                 name: name,
                 days: trip.days
             };
@@ -433,9 +485,9 @@
         }
 
         async function loadTrip() {
-            const tripId = document.getElementById('load-trip-id').value;
+            const tripId = document.getElementById('trip-selector').value;
             if (!tripId) {
-                alert('Введите ID путешествия');
+                clearTrip();
                 return;
             }
 
@@ -443,6 +495,7 @@
                 const response = await fetch(`/load/${tripId}/`);
                 const data = await response.json();
                 if (data.id) {
+                    trip.id = data.id;
                     trip.days = data.days;
                     document.getElementById('trip-name').value = data.name;
                     renderDaysList();
