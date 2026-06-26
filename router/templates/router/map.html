@@ -133,13 +133,24 @@
         <b>🌍 GeoRouter: Планировщик путешествий</b><br>
         <p style="font-size: 0.9em;">Выберите день и кликайте по карте, чтобы добавить точки.</p>
         
+        <div id="total-distance" style="margin-bottom: 15px; font-weight: bold; font-size: 1.1em; color: #007bff;">
+            Общий путь: 0 км
+        </div>
+
         <div id="days-list">
             <!-- Days will be added here -->
         </div>
 
         <div class="controls">
+            <input type="text" id="trip-name" placeholder="Название путешествия" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 5px;">
             <button onclick="addDay()">➕ Добавить день</button>
             <button onclick="clearTrip()">🗑️ Очистить всё</button>
+            <hr style="width: 100%; margin: 10px 0;">
+            <button onclick="saveTrip()" style="background: #28a745; color: white; border: none; font-weight: bold;">💾 Сохранить</button>
+            <div style="display: flex; gap: 5px; margin-top: 5px;">
+                <input type="number" id="load-trip-id" placeholder="ID" style="width: 60px; padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                <button onclick="loadTrip()" style="flex-grow: 1;">📂 Загрузить</button>
+            </div>
         </div>
     </div>
 
@@ -148,6 +159,7 @@
         <div class="layer-menu" id="layer-menu">
             <div class="layer-option active" onclick="setLayer('osm')">🗺️ Стандартная</div>
             <div class="layer-option" onclick="setLayer('satellite')">🛰️ Спутник</div>
+            <div class="layer-option" onclick="setLayer('hybrid')">🌓 Гибрид</div>
             <div class="layer-option" onclick="setLayer('terrain')">⛰️ Рельеф</div>
         </div>
     </div>
@@ -167,6 +179,12 @@
             satellite: new ol.layer.Tile({
                 source: new ol.source.XYZ({
                     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                }),
+                visible: false
+            }),
+            hybrid: new ol.layer.Tile({
+                source: new ol.source.XYZ({
+                    url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
                 }),
                 visible: false
             }),
@@ -219,6 +237,7 @@
             const names = {
                 osm: 'Стандартная',
                 satellite: 'Спутник',
+                hybrid: 'Гибрид',
                 terrain: 'Рельеф'
             };
             return names[id];
@@ -234,7 +253,7 @@
         var trip = {
             currentDayIndex: 0,
             days: [
-                { points: [] }
+                { points: [], distance: 0 }
             ]
         };
 
@@ -253,7 +272,8 @@
                 colorDiv.className = 'day-color';
                 colorDiv.style.backgroundColor = colors[index % colors.length];
 
-                const text = document.createTextNode('День ' + (index + 1) + ' (' + day.points.length + ' точек)');
+                const distKm = (day.distance / 1000).toFixed(2);
+                const text = document.createTextNode('День ' + (index + 1) + ' (' + day.points.length + ' точек, ' + distKm + ' км)');
 
                 item.appendChild(colorDiv);
                 item.appendChild(text);
@@ -267,13 +287,13 @@
         }
 
         function addDay() {
-            trip.days.push({ points: [] });
+            trip.days.push({ points: [], distance: 0 });
             trip.currentDayIndex = trip.days.length - 1;
             renderDaysList();
         }
 
         function clearTrip() {
-            trip.days = [{ points: [] }];
+            trip.days = [{ points: [], distance: 0 }];
             trip.currentDayIndex = 0;
             renderDaysList();
             updateRoute();
@@ -285,11 +305,18 @@
             updateRoute();
         }
 
+        function updateTotalDistance() {
+            const totalMeters = trip.days.reduce((sum, day) => sum + (day.distance || 0), 0);
+            const totalKm = (totalMeters / 1000).toFixed(2);
+            document.getElementById('total-distance').innerText = 'Общий путь: ' + totalKm + ' км';
+        }
+
         async function updateRoute() {
             vectorSource.clear();
 
             for (let dayIndex = 0; dayIndex < trip.days.length; dayIndex++) {
                 const day = trip.days[dayIndex];
+                day.distance = 0; // Reset distance for this day
                 const color = colors[dayIndex % colors.length];
 
                 // Add markers for all points in the day
@@ -311,15 +338,24 @@
                     vectorSource.addFeature(marker);
                 });
 
-                // Fetch route from OSRM if there are at least 2 points
-                if (day.points.length >= 2) {
-                    const coordinates = day.points.map(p => p.join(',')).join(';');
+                // Fetch route from OSRM if there are at least 2 points (including potential connection to previous day)
+                let waypoints = [...day.points];
+                if (dayIndex > 0) {
+                    const prevDay = trip.days[dayIndex - 1];
+                    if (prevDay.points.length > 0) {
+                        waypoints.unshift(prevDay.points[prevDay.points.length - 1]);
+                    }
+                }
+
+                if (waypoints.length >= 2) {
+                    const coordinates = waypoints.map(p => p.join(',')).join(';');
                     const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson`;
 
                     try {
                         const response = await fetch(url);
                         const data = await response.json();
                         if (data.routes && data.routes.length > 0) {
+                            day.distance = data.routes[0].distance; // Save distance in meters
                             const routeGeometry = new ol.geom.LineString(
                                 data.routes[0].geometry.coordinates.map(coord => ol.proj.fromLonLat(coord))
                             );
@@ -338,6 +374,8 @@
                         console.error('Routing error:', error);
                     }
                 }
+                updateTotalDistance();
+                renderDaysList();
             }
         }
 
@@ -365,6 +403,74 @@
 
         // Initial render
         renderDaysList();
+
+        async function saveTrip() {
+            const name = document.getElementById('trip-name').value || 'Моё путешествие';
+            const tripData = {
+                name: name,
+                days: trip.days
+            };
+
+            try {
+                const response = await fetch('/save/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(tripData)
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    alert('Путешествие сохранено! ID: ' + result.trip_id);
+                } else {
+                    alert('Ошибка при сохранении: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                alert('Произошла ошибка при сохранении');
+            }
+        }
+
+        async function loadTrip() {
+            const tripId = document.getElementById('load-trip-id').value;
+            if (!tripId) {
+                alert('Введите ID путешествия');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/load/${tripId}/`);
+                const data = await response.json();
+                if (data.id) {
+                    trip.days = data.days;
+                    document.getElementById('trip-name').value = data.name;
+                    renderDaysList();
+                    updateRoute();
+                    alert('Путешествие загружено!');
+                } else {
+                    alert('Ошибка: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+                alert('Произошла ошибка при загрузке');
+            }
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
     </script>
 </body>
 </html>
