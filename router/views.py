@@ -21,6 +21,17 @@ def trips_list(request):
     return render(request, 'router/trips.html', {'trips': trips})
 
 @login_required
+def delete_trip(request, trip_id):
+    if request.method == 'POST':
+        try:
+            trip = Trip.objects.get(id=trip_id, user=request.user)
+            trip.delete()
+            return redirect('trips')
+        except Trip.DoesNotExist:
+            return HttpResponse('Trip not found', status=404)
+    return HttpResponse('Invalid method', status=405)
+
+@login_required
 def save_trip(request):
     if request.method == 'POST':
         try:
