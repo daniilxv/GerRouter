@@ -178,7 +178,7 @@
         }
         .layer-menu {
             position: absolute;
-            top: 45px;
+            bottom: 45px;
             right: 0;
             background: white;
             border: 1px solid #ccc;
@@ -254,13 +254,6 @@
                 <button onclick="clearTrip()" style="background: #dc3545; color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer;">🗑️ Очистить</button>
             </div>
             <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 10px;">
-                <label style="font-size: 0.8em; color: #666;">Мои путешествия:</label>
-                <select id="trip-selector" onchange="loadTrip()" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
-                    <option value="">-- Новое путешествие --</option>
-                    {% for trip in trips %}
-                        <option value="{{ trip.id }}">{{ trip.name }}</option>
-                    {% endfor %}
-                </select>
             </div>
         </div>
     </div>
@@ -611,8 +604,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const tripId = urlParams.get('trip_id');
             if (tripId) {
-                document.getElementById('trip-selector').value = tripId;
-                loadTrip();
+                loadTrip(tripId);
             }
         });
 
@@ -645,8 +637,7 @@
             }
         }
 
-        async function loadTrip() {
-            const tripId = document.getElementById('trip-selector').value;
+        async function loadTrip(tripId = null) {
             if (!tripId) {
                 clearTrip();
                 return;
