@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+import datetime
 
 class Trip(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='trips', null=True, blank=True)
@@ -11,13 +12,13 @@ class Trip(models.Model):
 
 class Day(models.Model):
     trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='days')
-    day_number = models.IntegerField()
+    date = models.DateField(default=datetime.date.today)
 
     class Meta:
-        ordering = ['day_number']
+        ordering = ['date']
 
     def __str__(self):
-        return f"{self.trip.name} - День {self.day_number}"
+        return f"{self.trip.name} - {self.date}"
 
 class Waypoint(models.Model):
     day = models.ForeignKey(Day, on_delete=models.CASCADE, related_name='waypoints')
@@ -29,4 +30,4 @@ class Waypoint(models.Model):
         ordering = ['order']
 
     def __str__(self):
-        return f"Точка {self.order} (День {self.day.day_number})"
+        return f"Точка {self.order} ({self.day.date})"

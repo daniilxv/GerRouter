@@ -52,8 +52,12 @@ def save_trip(request):
             # Clear existing days and waypoints for a clean save
             Day.objects.filter(trip=trip).delete()
 
-            for i, day_data in enumerate(days_data):
-                day = Day.objects.create(trip=trip, day_number=i + 1)
+            for day_data in days_data:
+                date_str = day_data.get('date')
+                if not date_str:
+                    continue
+                
+                day = Day.objects.create(trip=trip, date=date_str)
                 for j, point in enumerate(day_data.get('points', [])):
                     Waypoint.objects.create(
                         day=day,
@@ -75,7 +79,10 @@ def load_trip(request, trip_id):
         for day in trip.days.all():
             waypoints = day.waypoints.all()
             points = [[wp.lon, wp.lat] for wp in waypoints]
-            days.append({'points': points})
+            days.append({
+                'date': day.date.isoformat(),
+                'points': points
+            })
         
         return JsonResponse({
             'id': trip.id,

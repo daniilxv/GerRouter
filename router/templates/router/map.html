@@ -9,6 +9,67 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
     
     <style>
+        .calendar-container {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 20px;
+            user-select: none;
+        }
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .calendar-header button {
+            background: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 2px 8px;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+            text-align: center;
+        }
+        .calendar-day-name {
+            font-size: 0.7em;
+            font-weight: bold;
+            color: #999;
+            padding-bottom: 5px;
+        }
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .calendar-day:hover {
+            background: #f0f0f0;
+        }
+        .calendar-day.selected {
+            background-color: #007bff !important;
+            color: #ffffff !important;
+            font-weight: bold;
+            box-shadow: inset 0 0 0 2px rgba(255,255,255,0.3);
+        }
+        .calendar-day.has-trip {
+            background: #e0f0ff;
+            color: #0056b3;
+            font-weight: bold;
+            border: 1px solid #007bff;
+        }
+        .calendar-day.today {
+            border: 1px solid #333;
+        }
         .auth-header {
             position: absolute;
             top: 10px;
@@ -47,17 +108,17 @@
         }
         .info-panel {
             position: absolute;
-            top: 10px;
-            left: 10px;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 320px;
             z-index: 1000;
             background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.2);
             font-family: Arial, sans-serif;
-            max-width: 300px;
-            max-height: 90vh;
             overflow-y: auto;
+            transition: transform 0.3s ease;
         }
         .day-item {
             display: flex;
@@ -117,7 +178,7 @@
         }
         .layer-menu {
             position: absolute;
-            bottom: 50px;
+            top: 45px;
             right: 0;
             background: white;
             border: 1px solid #ccc;
@@ -164,26 +225,37 @@
     </div>
 
     <div class="info-panel">
-        <b>🌍 GeoRouter: Планировщик путешествий</b><br>
-        <p style="font-size: 0.9em;">Выберите день и кликайте по карте, чтобы добавить точки.</p>
+        <h2 style="margin-top: 0; color: #333;">🌍 GeoRouter</h2>
+        <p style="font-size: 0.9em; color: #666;">Планируйте маршруты по датам.</p>
         
-        <div id="total-distance" style="margin-bottom: 15px; font-weight: bold; font-size: 1.1em; color: #007bff;">
+        <div id="total-distance" style="margin-bottom: 15px; font-weight: bold; font-size: 1.1em; color: #007bff; padding: 10px; background: #f0f7ff; border-radius: 8px;">
             Общий путь: 0 км
         </div>
 
-        <div id="days-list">
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <button onclick="changeMonth(-1)">◀</button>
+                <span id="calendar-month-year" style="font-weight: bold; font-size: 0.9em;"></span>
+                <button onclick="changeMonth(1)">▶</button>
+            </div>
+            <div class="calendar-grid" id="calendar-grid">
+                <!-- Days will be rendered here -->
+            </div>
+        </div>
+
+        <div id="days-list" style="margin-bottom: 20px;">
             <!-- Days will be added here -->
         </div>
 
-        <div class="controls">
-            <input type="text" id="trip-name" placeholder="Название путешествия" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 5px;">
-            <button onclick="addDay()">➕ Добавить день</button>
-            <button onclick="clearTrip()">🗑️ Очистить всё</button>
-            <hr style="width: 100%; margin: 10px 0;">
-            <button onclick="saveTrip()" style="background: #28a745; color: white; border: none; font-weight: bold;">💾 Сохранить</button>
-            <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 5px;">
+        <div class="controls" style="border-top: 1px solid #eee; padding-top: 20px;">
+            <input type="text" id="trip-name" placeholder="Название путешествия" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 10px; box-sizing: border-box;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <button onclick="saveTrip()" style="background: #28a745; color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer;">💾 Сохранить</button>
+                <button onclick="clearTrip()" style="background: #dc3545; color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer;">🗑️ Очистить</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 10px;">
                 <label style="font-size: 0.8em; color: #666;">Мои путешествия:</label>
-                <select id="trip-selector" onchange="loadTrip()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                <select id="trip-selector" onchange="loadTrip()" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
                     <option value="">-- Новое путешествие --</option>
                     {% for trip in trips %}
                         <option value="{{ trip.id }}">{{ trip.name }}</option>
@@ -209,6 +281,89 @@
     <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
 
     <script>
+        // Calendar state
+        let currentCalendarDate = new Date();
+        let selectedCalendarDate = new Date().toISOString().split('T')[0];
+
+        function handleDateClick(dateStr) {
+            selectedCalendarDate = dateStr;
+            
+            // Find if day already exists
+            let dayIndex = trip.days.findIndex(d => d.date === dateStr);
+            
+            if (dayIndex !== -1) {
+                trip.currentDayIndex = dayIndex;
+            } else {
+                trip.currentDayIndex = -1; // Pending creation
+            }
+            
+            renderDaysList();
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            const monthYearLabel = document.getElementById('calendar-month-year');
+            
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+            
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+                                "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+            monthYearLabel.innerText = `${monthNames[month]} ${year}`;
+            
+            grid.innerHTML = '';
+            
+            // Days of week
+            const daysOfWeek = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+            daysOfWeek.forEach(day => {
+                const div = document.createElement('div');
+                div.className = 'calendar-day-name';
+                div.innerText = day;
+                grid.appendChild(div);
+            });
+            
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            // Adjust for Monday start (JS getDay: 0=Sun, 1=Mon...)
+            const offset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+            
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Empty slots for previous month
+            for (let i = 0; i < offset; i++) {
+                grid.appendChild(document.createElement('div'));
+            }
+            
+            // Actual days
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                const div = document.createElement('div');
+                div.className = 'calendar-day';
+                div.innerText = day;
+                
+                if (dateStr === today) div.classList.add('today');
+                if (dateStr === selectedCalendarDate) div.classList.add('selected');
+                
+                // Check if this date has a day WITH points
+                if (trip.days.some(d => d.date === dateStr && d.points.length > 0)) {
+                    div.classList.add('has-trip');
+                }
+                
+                div.onclick = () => {
+                    handleDateClick(dateStr);
+                };
+                
+                grid.appendChild(div);
+            }
+        }
+
+        function changeMonth(delta) {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + delta);
+            renderCalendar();
+        }
+
         // Layers definition
         const layers = {
             osm: new ol.layer.Tile({
@@ -293,7 +448,7 @@
             id: null,
             currentDayIndex: 0,
             days: [
-                { points: [], distance: 0 }
+                { date: new Date().toISOString().split('T')[0], points: [], distance: 0 }
             ]
         };
 
@@ -313,7 +468,8 @@
                 colorDiv.style.backgroundColor = colors[index % colors.length];
 
                 const distKm = (day.distance / 1000).toFixed(2);
-                const text = document.createTextNode('День ' + (index + 1) + ' (' + day.points.length + ' точек, ' + distKm + ' км)');
+                const dateText = day.date ? day.date : 'Без даты';
+                const text = document.createTextNode(dateText + ' (' + day.points.length + ' точек, ' + distKm + ' км)');
 
                 item.appendChild(colorDiv);
                 item.appendChild(text);
@@ -326,15 +482,10 @@
             renderDaysList();
         }
 
-        function addDay() {
-            trip.days.push({ points: [], distance: 0 });
-            trip.currentDayIndex = trip.days.length - 1;
-            renderDaysList();
-        }
 
         function clearTrip() {
             trip.id = null;
-            trip.days = [{ points: [], distance: 0 }];
+            trip.days = [{ date: new Date().toISOString().split('T')[0], points: [], distance: 0 }];
             trip.currentDayIndex = 0;
             renderDaysList();
             updateRoute();
@@ -436,21 +587,24 @@
             } else {
                 // Map clicked - add new point to current day
                 const coords = ol.proj.toLonLat(evt.coordinate);
+                
+                if (trip.currentDayIndex === -1) {
+                    // Create day only when first point is added
+                    trip.days.push({ date: selectedCalendarDate, points: [], distance: 0 });
+                    trip.days.sort((a, b) => a.date.localeCompare(b.date));
+                    trip.currentDayIndex = trip.days.findIndex(d => d.date === selectedCalendarDate);
+                }
+                
                 trip.days[trip.currentDayIndex].points.push(coords);
                 renderDaysList();
+                renderCalendar();
                 updateRoute();
-
-                // Поиск достопримечательности через Nominatim
-                getLandmarkInfo(coords[0], coords[1]).then(name => {
-                    if (name) {
-                        alert('Достопримечательность: ' + name);
-                    }
-                });
             }
         });
 
         // Initial render
         renderDaysList();
+        renderCalendar();
 
         // Auto-load trip from URL query parameter
         window.addEventListener('DOMContentLoaded', () => {
@@ -507,6 +661,7 @@
                     document.getElementById('trip-name').value = data.name;
                     renderDaysList();
                     updateRoute();
+                    renderCalendar();
                 } else {
                     alert('Ошибка: ' + data.message);
                 }
@@ -529,25 +684,6 @@
                 }
             }
             return cookieValue;
-        }
-    </script>
-    <script>
-        async function getLandmarkInfo(lon, lat) {
-            try {
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lon=${lon}&lat=${lat}`);
-                const data = await response.json();
-                if (data.address) {
-                    // Проверяем, является ли объект достопримечательностью (amenity, tourism, historic и т.д.)
-                    const addr = data.address;
-                    if (addr.tourism || addr.historic || addr.amenity || addr.attraction || addr.leisure) {
-                        return data.display_name;
-                    }
-                }
-                return null;
-            } catch (e) {
-                console.error('Ошибка при поиске достопримечательности:', e);
-                return null;
-            }
         }
     </script>
 </body>
