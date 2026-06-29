@@ -53,15 +53,22 @@
             border-radius: 4px;
             transition: background 0.2s;
             line-height: 1.1;
+            text-align: center;
         }
         .day-number {
             font-weight: bold;
+            color: #000;
         }
         .day-distance {
-            font-size: 0.75em;
-            color: #444;
-            font-weight: 500;
-            white-space: nowrap;
+            color: var(--day-color, #000);
+            font-size: 0.8em;
+            font-weight: bold;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .calendar-day.selected .day-number,
+        .calendar-day.selected .day-distance {
+            color: #fff !important;
         }
         .calendar-day:hover {
             background: #f0f0f0;
@@ -295,6 +302,18 @@
         let currentCalendarDate = new Date();
         let selectedCalendarDate = new Date().toISOString().split('T')[0];
 
+        function syncColorPicker() {
+            const picker = document.getElementById('day-color-picker');
+            if (!picker) return;
+            
+            if (trip.currentDayIndex !== -1 && trip.days[trip.currentDayIndex]) {
+                const day = trip.days[trip.currentDayIndex];
+                picker.value = day.color || '#000000';
+            } else {
+                picker.value = '#000000';
+            }
+        }
+
         function handleDateClick(dateStr) {
             selectedCalendarDate = dateStr;
             
@@ -309,6 +328,7 @@
             
             renderDaysList();
             renderCalendar();
+            syncColorPicker();
         }
 
         function renderCalendar() {
@@ -357,20 +377,25 @@
                 numDiv.innerText = day;
                 div.appendChild(numDiv);
 
-                const tripDay = trip.days.find(d => d.date === dateStr);
+                const tripDayIndex = trip.days.findIndex(d => d.date === dateStr);
+                const tripDay = trip.days[tripDayIndex];
                 if (tripDay) {
+                    const color = tripDay.color || colors[tripDayIndex % colors.length];
+                    div.style.color = color;
+                    
                     const distDiv = document.createElement('div');
                     distDiv.className = 'day-distance';
                     const dist = (tripDay.distance || 0) / 1000;
-                    distDiv.innerText = dist.toFixed(1) + ' км';
+                    distDiv.innerText = dist.toFixed(1);
+                    
                     div.appendChild(distDiv);
                 }
                 
                 if (dateStr === today) div.classList.add('today');
                 if (dateStr === selectedCalendarDate) div.classList.add('selected');
                 
-                // Check if this date has a day WITH points
-                if (trip.days.some(d => d.date === dateStr && d.points.length > 0)) {
+                // Check if this date is part of the trip
+                if (trip.days.some(d => d.date === dateStr)) {
                     div.classList.add('has-trip');
                 }
                 
@@ -500,11 +525,7 @@
 
         function selectDay(index) {
             trip.currentDayIndex = index;
-            const day = trip.days[index];
-            const picker = document.getElementById('day-color-picker');
-            if (picker) {
-                picker.value = day.color || colors[index % colors.length];
-            }
+            syncColorPicker();
             renderDaysList();
         }
 
@@ -617,13 +638,13 @@
                 
                 if (trip.currentDayIndex === -1) {
                     // Create day only when first point is added
-                    const autoColor = colors[trip.days.length % colors.length];
-                    trip.days.push({ date: selectedCalendarDate, points: [], distance: 0, color: autoColor });
+                    trip.days.push({ date: selectedCalendarDate, points: [], distance: 0, color: null });
                     trip.days.sort((a, b) => a.date.localeCompare(b.date));
                     trip.currentDayIndex = trip.days.findIndex(d => d.date === selectedCalendarDate);
                 }
                 
                 trip.days[trip.currentDayIndex].points.push(coords);
+                syncColorPicker();
                 renderDaysList();
                 renderCalendar();
                 updateRoute();
@@ -695,6 +716,10 @@
                     trip.days = data.days;
                     document.getElementById('trip-name').value = data.name;
                     await updateRoute();
+                    if (trip.days.length > 0) {
+                        trip.currentDayIndex = 0;
+                        syncColorPicker();
+                    }
                     renderDaysList();
                     renderCalendar();
                 } else {
