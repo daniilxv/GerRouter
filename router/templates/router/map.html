@@ -462,7 +462,6 @@
 
                 const colorDiv = document.createElement('div');
                 colorDiv.className = 'day-color';
-                const day = trip.days[index];
                 colorDiv.style.backgroundColor = day.color || colors[index % colors.length];
 
                 const distKm = (day.distance / 1000).toFixed(2);
@@ -512,7 +511,6 @@
             for (let dayIndex = 0; dayIndex < trip.days.length; dayIndex++) {
                 const day = trip.days[dayIndex];
                 day.distance = 0; // Reset distance for this day
-                const day = trip.days[dayIndex];
                 const color = day.color || colors[dayIndex % colors.length];
 
                 // Add markers for all points in the day
@@ -594,7 +592,8 @@
                 
                 if (trip.currentDayIndex === -1) {
                     // Create day only when first point is added
-                    trip.days.push({ date: selectedCalendarDate, points: [], distance: 0 });
+                    const autoColor = colors[trip.days.length % colors.length];
+                    trip.days.push({ date: selectedCalendarDate, points: [], distance: 0, color: autoColor });
                     trip.days.sort((a, b) => a.date.localeCompare(b.date));
                     trip.currentDayIndex = trip.days.findIndex(d => d.date === selectedCalendarDate);
                 }
