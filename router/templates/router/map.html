@@ -45,12 +45,23 @@
         .calendar-day {
             aspect-ratio: 1;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             font-size: 0.8em;
             cursor: pointer;
             border-radius: 4px;
             transition: background 0.2s;
+            line-height: 1.1;
+        }
+        .day-number {
+            font-weight: bold;
+        }
+        .day-distance {
+            font-size: 0.75em;
+            color: #444;
+            font-weight: 500;
+            white-space: nowrap;
         }
         .calendar-day:hover {
             background: #f0f0f0;
@@ -340,7 +351,20 @@
                 
                 const div = document.createElement('div');
                 div.className = 'calendar-day';
-                div.innerText = day;
+                
+                const numDiv = document.createElement('div');
+                numDiv.className = 'day-number';
+                numDiv.innerText = day;
+                div.appendChild(numDiv);
+
+                const tripDay = trip.days.find(d => d.date === dateStr);
+                if (tripDay) {
+                    const distDiv = document.createElement('div');
+                    distDiv.className = 'day-distance';
+                    const dist = (tripDay.distance || 0) / 1000;
+                    distDiv.innerText = dist.toFixed(1) + ' км';
+                    div.appendChild(distDiv);
+                }
                 
                 if (dateStr === today) div.classList.add('today');
                 if (dateStr === selectedCalendarDate) div.classList.add('selected');
@@ -569,8 +593,9 @@
                     }
                 }
                 updateTotalDistance();
-                renderDaysList();
             }
+            renderDaysList();
+            renderCalendar();
         }
 
         // Handle map clicks: add point or remove marker
@@ -661,7 +686,7 @@
                 clearTrip();
                 return;
             }
-
+            
             try {
                 const response = await fetch(`/load/${tripId}/`);
                 const data = await response.json();
@@ -669,8 +694,8 @@
                     trip.id = data.id;
                     trip.days = data.days;
                     document.getElementById('trip-name').value = data.name;
+                    await updateRoute();
                     renderDaysList();
-                    updateRoute();
                     renderCalendar();
                 } else {
                     alert('Ошибка: ' + data.message);
