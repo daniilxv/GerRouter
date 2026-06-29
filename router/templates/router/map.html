@@ -230,6 +230,33 @@
             color: #007bff;
             font-weight: bold;
         }
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: #fff;
+            border-bottom-color: transparent;
+            color: #007bff;
+            font-weight: bold;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+        }
+        .hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -250,7 +277,11 @@
             Общий путь: 0 км
         </div>
 
-        <div class="calendar-container">
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('calendar')">📅 Календарь</button>
+            <button class="tab-btn" onclick="switchTab('list')">📋 Список</button>
+        </div>
+        <div id="calendar-container" class="calendar-container">
             <div class="calendar-header">
                 <button onclick="changeMonth(-1)">◀</button>
                 <span id="calendar-month-year" style="font-weight: bold; font-size: 0.9em;"></span>
@@ -261,7 +292,7 @@
             </div>
         </div>
 
-        <div id="days-list" style="margin-bottom: 20px;">
+        <div id="days-list" class="hidden" style="margin-bottom: 20px;">
             <!-- Days will be added here -->
         </div>
 
@@ -311,6 +342,24 @@
                 picker.value = day.color || '#000000';
             } else {
                 picker.value = '#000000';
+            }
+        }
+
+        function switchTab(tab) {
+            const cal = document.getElementById('calendar-container');
+            const list = document.getElementById('days-list');
+            const btns = document.querySelectorAll('.tab-btn');
+            
+            if (tab === 'calendar') {
+                cal.classList.remove('hidden');
+                list.classList.add('hidden');
+                btns[0].classList.add('active');
+                btns[1].classList.remove('active');
+            } else {
+                cal.classList.add('hidden');
+                list.classList.remove('hidden');
+                btns[0].classList.remove('active');
+                btns[1].classList.add('active');
             }
         }
 
@@ -525,8 +574,13 @@
 
         function selectDay(index) {
             trip.currentDayIndex = index;
+            const day = trip.days[index];
+            if (day && day.date) {
+                selectedCalendarDate = day.date;
+            }
             syncColorPicker();
             renderDaysList();
+            renderCalendar();
         }
 
 
@@ -718,6 +772,7 @@
                     await updateRoute();
                     if (trip.days.length > 0) {
                         trip.currentDayIndex = 0;
+                        selectedCalendarDate = trip.days[trip.currentDayIndex].date;
                         syncColorPicker();
                     }
                     renderDaysList();
