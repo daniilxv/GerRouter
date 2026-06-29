@@ -13,6 +13,7 @@ class Trip(models.Model):
 class Day(models.Model):
     trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='days')
     date = models.DateField(default=datetime.date.today)
+    color = models.CharField(max_length=20, blank=True, null=True)
 
     class Meta:
         ordering = ['date']

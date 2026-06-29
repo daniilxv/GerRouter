@@ -57,7 +57,7 @@ def save_trip(request):
                 if not date_str:
                     continue
                 
-                day = Day.objects.create(trip=trip, date=date_str)
+                day = Day.objects.create(trip=trip, date=date_str, color=day_data.get('color'))
                 for j, point in enumerate(day_data.get('points', [])):
                     Waypoint.objects.create(
                         day=day,
@@ -81,7 +81,8 @@ def load_trip(request, trip_id):
             points = [[wp.lon, wp.lat] for wp in waypoints]
             days.append({
                 'date': day.date.isoformat(),
-                'points': points
+                'points': points,
+                'color': day.color
             })
         
         return JsonResponse({

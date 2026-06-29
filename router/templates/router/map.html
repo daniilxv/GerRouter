@@ -249,6 +249,12 @@
 
         <div class="controls" style="border-top: 1px solid #eee; padding-top: 20px;">
             <input type="text" id="trip-name" placeholder="Название путешествия" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 10px; box-sizing: border-box;">
+            
+            <div id="day-color-container" style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 8px; background: #f9f9f9; border-radius: 4px; border: 1px solid #eee;">
+                <label for="day-color-picker" style="font-size: 0.9em; color: #666;">Цвет дня:</label>
+                <input type="color" id="day-color-picker" style="width: 40px; height: 30px; cursor: pointer; border: none; background: none;">
+            </div>
+
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                 <button onclick="saveTrip()" style="background: #28a745; color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer;">💾 Сохранить</button>
                 <button onclick="clearTrip()" style="background: #dc3545; color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; cursor: pointer;">🗑️ Очистить</button>
@@ -456,7 +462,8 @@
 
                 const colorDiv = document.createElement('div');
                 colorDiv.className = 'day-color';
-                colorDiv.style.backgroundColor = colors[index % colors.length];
+                const day = trip.days[index];
+                colorDiv.style.backgroundColor = day.color || colors[index % colors.length];
 
                 const distKm = (day.distance / 1000).toFixed(2);
                 const dateText = day.date ? day.date : 'Без даты';
@@ -470,6 +477,11 @@
 
         function selectDay(index) {
             trip.currentDayIndex = index;
+            const day = trip.days[index];
+            const picker = document.getElementById('day-color-picker');
+            if (picker) {
+                picker.value = day.color || colors[index % colors.length];
+            }
             renderDaysList();
         }
 
@@ -500,7 +512,8 @@
             for (let dayIndex = 0; dayIndex < trip.days.length; dayIndex++) {
                 const day = trip.days[dayIndex];
                 day.distance = 0; // Reset distance for this day
-                const color = colors[dayIndex % colors.length];
+                const day = trip.days[dayIndex];
+                const color = day.color || colors[dayIndex % colors.length];
 
                 // Add markers for all points in the day
                 day.points.forEach((point, pointIndex) => {
@@ -596,6 +609,15 @@
         // Initial render
         renderDaysList();
         renderCalendar();
+
+        document.getElementById('day-color-picker').onchange = (e) => {
+            const color = e.target.value;
+            if (trip.currentDayIndex !== -1) {
+                trip.days[trip.currentDayIndex].color = color;
+                renderDaysList();
+                updateRoute();
+            }
+        };
 
         // Auto-load trip from URL query parameter
         window.addEventListener('DOMContentLoaded', () => {
