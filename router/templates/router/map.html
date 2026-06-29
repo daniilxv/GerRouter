@@ -439,10 +439,8 @@
 
         var trip = {
             id: null,
-            currentDayIndex: 0,
-            days: [
-                { date: new Date().toISOString().split('T')[0], points: [], distance: 0 }
-            ]
+            currentDayIndex: -1,
+            days: []
         };
 
         const colors = ['blue', 'red', 'green', 'purple', 'orange', 'darkred', 'darkgreen', 'darkblue', 'magenta', 'cyan'];
@@ -478,8 +476,8 @@
 
         function clearTrip() {
             trip.id = null;
-            trip.days = [{ date: new Date().toISOString().split('T')[0], points: [], distance: 0 }];
-            trip.currentDayIndex = 0;
+            trip.days = [];
+            trip.currentDayIndex = -1;
             renderDaysList();
             updateRoute();
         }
