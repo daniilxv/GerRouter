@@ -50,10 +50,6 @@
         <div id="days-list" class="hidden" style="margin-bottom: 10px;">
             <!-- Days will be added here -->
         </div>
-        <div id="points-list" class="hidden" style="margin-bottom: 20px; padding: 10px; background: #f9f9f9; border: 1px solid #eee; border-radius: 8px; max-height: 200px; overflow-y: auto;">
-            <div style="font-weight: bold; margin-bottom: 10px; font-size: 0.9em;">Точки дня:</div>
-            <div id="points-container"></div>
-        </div>
 
         <div class="controls" style="border-top: 1px solid #eee; padding-top: 20px;">
             <input type="text" id="trip-name" placeholder="Название путешествия" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 10px; box-sizing: border-box;">
@@ -87,6 +83,6 @@
     <!-- OpenLayers JS -->
     <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
     
-    <script src="{% static 'router/js/map.js' %}" defer></script>
+    <script src="{% static 'router/js/map.js' %}?v=1.1" defer></script>
 </body>
 </html>

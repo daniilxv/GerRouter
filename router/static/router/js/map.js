@@ -213,74 +213,52 @@ map.addLayer(vectorLayer);
 var trip = {
     id: null,
     currentDayIndex: -1,
-    days: []
+    days: [],
+    selectedPoints: []
 };
 
 
-function renderPointsList() {
-    const listDiv = document.getElementById('points-list');
-    const container = document.getElementById('points-container');
-    
-    if (trip.currentDayIndex === -1 || !trip.days[trip.currentDayIndex]) {
-        if (listDiv) listDiv.classList.add('hidden');
-        return;
-    }
-    
-    if (listDiv) listDiv.classList.remove('hidden');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    const day = trip.days[trip.currentDayIndex];
-    
-    day.points.forEach((point, index) => {
-        const div = document.createElement('div');
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.gap = '8px';
-        div.style.marginBottom = '5px';
-        div.style.fontSize = '0.85em';
-        
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = (day.selectedPoints || []).includes(index);
-        cb.onchange = (e) => {
-            if (!day.selectedPoints) day.selectedPoints = [];
-            if (e.target.checked) {
-                day.selectedPoints.push(index);
-            } else {
-                day.selectedPoints = day.selectedPoints.filter(i => i !== index);
-            }
-            updateSegmentDistance();
-            updateRoute();
-        };
-        
-        const label = document.createElement('span');
-        label.innerText = `Точка ${index + 1} (${point[0].toFixed(4)}, ${point[1].toFixed(4)})`;
-        
-        div.appendChild(cb);
-        div.appendChild(label);
-        container.appendChild(div);
-    });
-}
 
 async function updateSegmentDistance() {
     const distDiv = document.getElementById('segment-distance');
     if (!distDiv) return;
     
-    if (trip.currentDayIndex === -1 || !trip.days[trip.currentDayIndex]) {
+    if (trip.selectedPoints.length < 2) {
         distDiv.innerText = 'Отрезок: 0 км';
         return;
     }
     
-    const day = trip.days[trip.currentDayIndex];
-    const selected = (day.selectedPoints || []).sort((a, b) => a - b);
+    distDiv.innerText = 'Отрезок: расчет...';
     
-    if (selected.length < 2) {
+    // Sort selected points by their position in the overall route
+    const sortedSelected = [...trip.selectedPoints].sort((a, b) => {
+        if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+        return a.pointIndex - b.pointIndex;
+    });
+    
+    const start = sortedSelected[0];
+    const end = sortedSelected[1];
+    
+    const routePoints = [];
+    for (let dIdx = start.dayIndex; dIdx <= end.dayIndex; dIdx++) {
+        const day = trip.days[dIdx];
+        if (!day) continue;
+        
+        let startPt = 0;
+        if (dIdx === start.dayIndex) startPt = start.pointIndex;
+        
+        let endPt = day.points.length;
+        if (dIdx === end.dayIndex) endPt = end.pointIndex + 1;
+        
+        routePoints.push(...day.points.slice(startPt, endPt));
+    }
+    
+    if (routePoints.length < 2) {
         distDiv.innerText = 'Отрезок: 0 км';
         return;
     }
     
-    const coords = selected.map(idx => day.points[idx].join(',')).join(';');
+    const coords = routePoints.map(p => p.join(',')).join(';');
     const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
     
     try {
@@ -336,7 +314,6 @@ function selectDay(index) {
     syncColorPicker();
     renderDaysList();
     renderCalendar();
-    renderPointsList();
 }
 
 
@@ -358,7 +335,6 @@ function removeWaypoint(dayIndex, pointIndex) {
     }
     
     renderDaysList();
-    renderPointsList();
     updateSegmentDistance();
     updateRoute();
 }
@@ -372,32 +348,12 @@ function updateTotalDistance() {
 async function updateRoute() {
     vectorSource.clear();
 
+    // 1. First, add all route lines (so they are at the bottom)
     for (let dayIndex = 0; dayIndex < trip.days.length; dayIndex++) {
         const day = trip.days[dayIndex];
-        day.distance = 0; // Reset distance for this day
+        day.distance = 0;
         const color = day.color || '#000000';
 
-        // Add markers for all points in the day
-        day.points.forEach((point, pointIndex) => {
-            const marker = new ol.Feature({
-                geometry: new ol.geom.Point(ol.proj.fromLonLat(point)),
-                dayIndex: dayIndex,
-                pointIndex: pointIndex
-            });
-
-            const isSelected = (day.selectedPoints || []).includes(pointIndex);
-            marker.setStyle(new ol.style.Style({
-                image: new ol.style.Circle({
-                    radius: isSelected ? 8 : 6,
-                    fill: new ol.style.Fill({ color: color }),
-                    stroke: new ol.style.Stroke({ color: isSelected ? 'yellow' : 'white', width: isSelected ? 3 : 2 })
-                })
-            }));
-
-            vectorSource.addFeature(marker);
-        });
-
-        // Fetch route from OSRM if there are at least 2 points (including potential connection to previous day)
         let waypoints = [...day.points];
         if (dayIndex > 0) {
             const prevDay = trip.days[dayIndex - 1];
@@ -414,18 +370,13 @@ async function updateRoute() {
                 const response = await fetch(url);
                 const data = await response.json();
                 if (data.routes && data.routes.length > 0) {
-                    day.distance = data.routes[0].distance; // Save distance in meters
+                    day.distance = data.routes[0].distance;
                     const routeGeometry = new ol.geom.LineString(
                         data.routes[0].geometry.coordinates.map(coord => ol.proj.fromLonLat(coord))
                     );
-                    const routeFeature = new ol.Feature({
-                        geometry: routeGeometry
-                    });
+                    const routeFeature = new ol.Feature({ geometry: routeGeometry });
                     routeFeature.setStyle(new ol.style.Style({
-                        stroke: new ol.style.Stroke({
-                            color: color,
-                            width: 5
-                        })
+                        stroke: new ol.style.Stroke({ color: color, width: 5 })
                     }));
                     vectorSource.addFeature(routeFeature);
                 }
@@ -433,26 +384,105 @@ async function updateRoute() {
                 console.error('Routing error:', error);
             }
         }
-        updateTotalDistance();
     }
+
+    // 2. Then, add all markers (so they are on top)
+    for (let dayIndex = 0; dayIndex < trip.days.length; dayIndex++) {
+        const day = trip.days[dayIndex];
+        const color = day.color || '#000000';
+
+        day.points.forEach((point, pointIndex) => {
+            const marker = new ol.Feature({
+                geometry: new ol.geom.Point(ol.proj.fromLonLat(point)),
+                dayIndex: dayIndex,
+                pointIndex: pointIndex
+            });
+
+            const isSelected = trip.selectedPoints.some(p => p.dayIndex === dayIndex && p.pointIndex === pointIndex);
+            marker.setStyle(new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: isSelected ? 8 : 6,
+                    fill: new ol.style.Fill({ color: color }),
+                    stroke: new ol.style.Stroke({ color: isSelected ? 'yellow' : 'white', width: isSelected ? 3 : 2 })
+                })
+            }));
+            vectorSource.addFeature(marker);
+        });
+    }
+
+    // 3. Finally, highlight selected segment on top of everything
+    if (trip.selectedPoints.length === 2) {
+        const sortedSelected = [...trip.selectedPoints].sort((a, b) => {
+            if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+            return a.pointIndex - b.pointIndex;
+        });
+        const start = sortedSelected[0];
+        const end = sortedSelected[1];
+        
+        const segmentPoints = [];
+        for (let dIdx = start.dayIndex; dIdx <= end.dayIndex; dIdx++) {
+            const day = trip.days[dIdx];
+            if (!day) continue;
+            let startPt = (dIdx === start.dayIndex) ? start.pointIndex : 0;
+            let endPt = (dIdx === end.dayIndex) ? end.pointIndex + 1 : day.points.length;
+            segmentPoints.push(...day.points.slice(startPt, endPt));
+        }
+        
+        if (segmentPoints.length >= 2) {
+            const segmentCoords = segmentPoints.map(p => p.join(',')).join(';');
+            const segmentUrl = `https://router.project-osrm.org/route/v1/driving/${segmentCoords}?overview=full&geometries=geojson`;
+            try {
+                const segResponse = await fetch(segmentUrl);
+                const segData = await segResponse.json();
+                if (segData.routes && segData.routes.length > 0) {
+                    const segGeometry = new ol.geom.LineString(
+                        segData.routes[0].geometry.coordinates.map(coord => ol.proj.fromLonLat(coord))
+                    );
+                    const segFeature = new ol.Feature({ geometry: segGeometry });
+                    segFeature.setStyle(new ol.style.Style({
+                        stroke: new ol.style.Stroke({ color: 'yellow', width: 8 })
+                    }));
+                    vectorSource.addFeature(segFeature);
+                }
+            } catch (segError) {
+                console.error('Segment highlight error:', segError);
+            }
+        }
+    }
+    updateTotalDistance();
     renderDaysList();
     renderCalendar();
 }
 
 // Handle map clicks: add point or remove marker
 map.on('singleclick', function(evt) {
+    console.log('Map singleclick event fired');
     const feature = map.forEachFeatureAtPixel(evt.pixel, function(feature) {
         return feature;
     });
 
     if (feature && feature.get('dayIndex') !== undefined) {
-        // Marker clicked - remove it
+        console.log('Marker clicked:', feature.get('dayIndex'), feature.get('pointIndex'));
         const dayIndex = feature.get('dayIndex');
         const pointIndex = feature.get('pointIndex');
-        if (confirm('Удалить эту точку?')) {
-            removeWaypoint(dayIndex, pointIndex);
+        
+        // Toggle selection for distance measurement
+        const existingIdx = trip.selectedPoints.findIndex(p => p.dayIndex === dayIndex && p.pointIndex === pointIndex);
+        if (existingIdx !== -1) {
+            console.log('Deselecting point');
+            trip.selectedPoints.splice(existingIdx, 1);
+        } else {
+            console.log('Selecting point');
+            trip.selectedPoints.push({ dayIndex, pointIndex });
+            if (trip.selectedPoints.length > 2) {
+                trip.selectedPoints.shift();
+            }
         }
+        
+        updateSegmentDistance();
+        updateRoute();
     } else {
+        console.log('Map background clicked - adding point');
         // Map clicked - add new point to current day
         const coords = ol.proj.toLonLat(evt.coordinate);
         
@@ -467,9 +497,24 @@ map.on('singleclick', function(evt) {
         syncColorPicker();
         renderDaysList();
         renderCalendar();
-        renderPointsList();
         updateSegmentDistance();
         updateRoute();
+    }
+});
+
+map.on('dblclick', function(evt) {
+    console.log('Map dblclick event fired');
+    const feature = map.forEachFeatureAtPixel(evt.pixel, function(feature) {
+        return feature;
+    });
+
+    if (feature && feature.get('dayIndex') !== undefined) {
+        console.log('Marker double-clicked for deletion:', feature.get('dayIndex'), feature.get('pointIndex'));
+        const dayIndex = feature.get('dayIndex');
+        const pointIndex = feature.get('pointIndex');
+        if (confirm('Удалить эту точку?')) {
+            removeWaypoint(dayIndex, pointIndex);
+        }
     }
 });
 
@@ -535,6 +580,8 @@ async function loadTrip(tripId = null) {
         if (data.id) {
             trip.id = data.id;
             trip.days = data.days;
+            // Ensure days are sorted by date for correct index-based route calculation
+            trip.days.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
             document.getElementById('trip-name').value = data.name;
             await updateRoute();
             if (trip.days.length > 0) {
