@@ -51,6 +51,16 @@
             <!-- Days will be added here -->
         </div>
 
+        <div id="day-details" class="hidden" style="margin-bottom: 15px; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 8px;">
+            <h3 style="font-size: 1em; margin: 0 0 10px 0; color: #333;">Детали дня</h3>
+            <label style="font-size: 0.8em; color: #666;">Комментарий к дню:</label>
+            <textarea id="day-comment" style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 10px; box-sizing: border-box; font-family: inherit;"></textarea>
+            
+            <div id="points-comments-list" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Point comments will be rendered here -->
+            </div>
+        </div>
+
         <div class="controls" style="border-top: 1px solid #eee; padding-top: 20px;">
             <input type="text" id="trip-name" placeholder="Название путешествия" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 10px; box-sizing: border-box;">
             
@@ -66,6 +76,7 @@
             <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 10px;">
             </div>
         </div>
+        <div class="info-panel-resizer"></div>
     </div>
 
     <div class="layer-switcher">

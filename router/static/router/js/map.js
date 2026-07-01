@@ -218,7 +218,6 @@ var trip = {
 };
 
 
-
 async function updateSegmentDistance() {
     const distDiv = document.getElementById('segment-distance');
     if (!distDiv) return;
@@ -311,9 +310,71 @@ function selectDay(index) {
         day.selectedPoints = [];
     }
     
+    // Show day details and populate comments
+    const detailsPanel = document.getElementById('day-details');
+    if (detailsPanel) {
+        detailsPanel.classList.remove('hidden');
+        const commentInput = document.getElementById('day-comment');
+        if (commentInput) {
+            commentInput.value = day ? (day.comment || '') : '';
+            commentInput.oninput = (e) => {
+                if (day) day.comment = e.target.value;
+            };
+        }
+        renderPointsComments();
+    }
+    
     syncColorPicker();
     renderDaysList();
     renderCalendar();
+}
+
+function renderPointsComments() {
+    const list = document.getElementById('points-comments-list');
+    if (!list) return;
+    
+    list.innerHTML = '';
+    const day = trip.days[trip.currentDayIndex];
+    if (!day) return;
+    
+    day.points.forEach((point, index) => {
+        const container = document.createElement('div');
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '2px';
+        
+        const label = document.createElement('label');
+        label.style.fontSize = '0.75em';
+        label.style.color = '#666';
+        label.innerText = `Точка ${index + 1}:`;
+        
+        const input = document.createElement('textarea');
+        input.style.padding = '4px';
+        input.style.fontSize = '0.85em';
+        input.style.borderRadius = '4px';
+        input.style.border = '1px solid #ccc';
+        input.style.resize = 'vertical';
+        input.style.minHeight = '40px';
+        
+        // Handle point as object {lon, lat, comment} or array [lon, lat]
+        const pointComment = (typeof point === 'object' && !Array.isArray(point)) ? point.comment : '';
+        input.value = pointComment || '';
+        
+        input.oninput = (e) => {
+            if (typeof point === 'object' && !Array.isArray(point)) {
+                point.comment = e.target.value;
+            } else {
+                // Convert point from array to object to store comment
+                const lon = point[0];
+                const lat = point[1];
+                trip.days[trip.currentDayIndex].points[index] = { lon, lat, comment: e.target.value };
+            }
+        };
+        
+        container.appendChild(label);
+        container.appendChild(input);
+        list.appendChild(container);
+    });
 }
 
 
@@ -343,6 +404,85 @@ function updateTotalDistance() {
     const totalMeters = trip.days.reduce((sum, day) => sum + (day.distance || 0), 0);
     const totalKm = (totalMeters / 1000).toFixed(2);
     document.getElementById('total-distance').innerText = 'Общий путь: ' + totalKm + ' км';
+}
+
+function updateUI() {
+    updateTotalDistance();
+    renderDaysList();
+    renderCalendar();
+}
+
+function updateMarkersStyle() {
+    vectorSource.getFeatures().forEach(feature => {
+        const dayIndex = feature.get('dayIndex');
+        const pointIndex = feature.get('pointIndex');
+        
+        if (dayIndex !== undefined && pointIndex !== undefined) {
+            const day = trip.days[dayIndex];
+            const color = day ? (day.color || '#000000') : '#000000';
+            const isSelected = trip.selectedPoints.some(p => p.dayIndex === dayIndex && p.pointIndex === pointIndex);
+            
+            feature.setStyle(new ol.style.Style({
+                image: new ol.style.Circle({
+                    radius: isSelected ? 8 : 6,
+                    fill: new ol.style.Fill({ color: color }),
+                    stroke: new ol.style.Stroke({ color: isSelected ? 'yellow' : 'white', width: isSelected ? 3 : 2 })
+                })
+            }));
+        }
+    });
+}
+
+async function updateHighlightedSegment() {
+    const features = vectorSource.getFeatures();
+    for (let i = features.length - 1; i >= 0; i--) {
+        const f = features[i];
+        if (f.get('dayIndex') === undefined && f.get('pointIndex') === undefined) {
+            const style = f.getStyle();
+            if (style && style.getStroke && style.getStroke().getColor() === 'yellow' && style.getStroke().getWidth() === 8) {
+                vectorSource.removeFeature(f);
+            }
+        }
+    }
+
+    if (trip.selectedPoints.length === 2) {
+        const sortedSelected = [...trip.selectedPoints].sort((a, b) => {
+            if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+            return a.pointIndex - b.pointIndex;
+        });
+        const start = sortedSelected[0];
+        const end = sortedSelected[1];
+        
+        const segmentPoints = [];
+        for (let dIdx = start.dayIndex; dIdx <= end.dayIndex; dIdx++) {
+            const day = trip.days[dIdx];
+            if (!day) continue;
+            let startPt = (dIdx === start.dayIndex) ? start.pointIndex : 0;
+            let endPt = (dIdx === end.dayIndex) ? end.pointIndex + 1 : day.points.length;
+            segmentPoints.push(...day.points.slice(startPt, endPt));
+        }
+        
+        if (segmentPoints.length >= 2) {
+            const segmentCoords = segmentPoints.map(p => p.join(',')).join(';');
+            const segmentUrl = `https://router.project-osrm.org/route/v1/driving/${segmentCoords}?overview=full&geometries=geojson`;
+            try {
+                const segResponse = await fetch(segmentUrl);
+                const segData = await segResponse.json();
+                if (segData.routes && segData.routes.length > 0) {
+                    const segGeometry = new ol.geom.LineString(
+                        segData.routes[0].geometry.coordinates.map(coord => ol.proj.fromLonLat(coord))
+                    );
+                    const segFeature = new ol.Feature({ geometry: segGeometry });
+                    segFeature.setStyle(new ol.style.Style({
+                        stroke: new ol.style.Stroke({ color: 'yellow', width: 8 })
+                    }));
+                    vectorSource.addFeature(segFeature);
+                }
+            } catch (segError) {
+                console.error('Segment highlight error:', segError);
+            }
+        }
+    }
 }
 
 async function updateRoute() {
@@ -397,65 +537,17 @@ async function updateRoute() {
                 dayIndex: dayIndex,
                 pointIndex: pointIndex
             });
-
-            const isSelected = trip.selectedPoints.some(p => p.dayIndex === dayIndex && p.pointIndex === pointIndex);
-            marker.setStyle(new ol.style.Style({
-                image: new ol.style.Circle({
-                    radius: isSelected ? 8 : 6,
-                    fill: new ol.style.Fill({ color: color }),
-                    stroke: new ol.style.Stroke({ color: isSelected ? 'yellow' : 'white', width: isSelected ? 3 : 2 })
-                })
-            }));
             vectorSource.addFeature(marker);
         });
     }
 
-    // 3. Finally, highlight selected segment on top of everything
-    if (trip.selectedPoints.length === 2) {
-        const sortedSelected = [...trip.selectedPoints].sort((a, b) => {
-            if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
-            return a.pointIndex - b.pointIndex;
-        });
-        const start = sortedSelected[0];
-        const end = sortedSelected[1];
-        
-        const segmentPoints = [];
-        for (let dIdx = start.dayIndex; dIdx <= end.dayIndex; dIdx++) {
-            const day = trip.days[dIdx];
-            if (!day) continue;
-            let startPt = (dIdx === start.dayIndex) ? start.pointIndex : 0;
-            let endPt = (dIdx === end.dayIndex) ? end.pointIndex + 1 : day.points.length;
-            segmentPoints.push(...day.points.slice(startPt, endPt));
-        }
-        
-        if (segmentPoints.length >= 2) {
-            const segmentCoords = segmentPoints.map(p => p.join(',')).join(';');
-            const segmentUrl = `https://router.project-osrm.org/route/v1/driving/${segmentCoords}?overview=full&geometries=geojson`;
-            try {
-                const segResponse = await fetch(segmentUrl);
-                const segData = await segResponse.json();
-                if (segData.routes && segData.routes.length > 0) {
-                    const segGeometry = new ol.geom.LineString(
-                        segData.routes[0].geometry.coordinates.map(coord => ol.proj.fromLonLat(coord))
-                    );
-                    const segFeature = new ol.Feature({ geometry: segGeometry });
-                    segFeature.setStyle(new ol.style.Style({
-                        stroke: new ol.style.Stroke({ color: 'yellow', width: 8 })
-                    }));
-                    vectorSource.addFeature(segFeature);
-                }
-            } catch (segError) {
-                console.error('Segment highlight error:', segError);
-            }
-        }
-    }
-    updateTotalDistance();
-    renderDaysList();
-    renderCalendar();
+    updateMarkersStyle();
+    await updateHighlightedSegment();
+    updateUI();
 }
 
 // Handle map clicks: add point or remove marker
-map.on('singleclick', function(evt) {
+map.on('singleclick', async function(evt) {
     console.log('Map singleclick event fired');
     const feature = map.forEachFeatureAtPixel(evt.pixel, function(feature) {
         return feature;
@@ -480,7 +572,8 @@ map.on('singleclick', function(evt) {
         }
         
         updateSegmentDistance();
-        updateRoute();
+        updateMarkersStyle();
+        await updateHighlightedSegment();
     } else {
         console.log('Map background clicked - adding point');
         // Map clicked - add new point to current day
@@ -576,6 +669,10 @@ async function loadTrip(tripId = null) {
     
     try {
         const response = await fetch(`/load/${tripId}/`);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+            throw new Error(errorData.message || `Server error: ${response.status}`);
+        }
         const data = await response.json();
         if (data.id) {
             trip.id = data.id;
@@ -585,12 +682,8 @@ async function loadTrip(tripId = null) {
             document.getElementById('trip-name').value = data.name;
             await updateRoute();
             if (trip.days.length > 0) {
-                trip.currentDayIndex = 0;
-                selectedCalendarDate = trip.days[trip.currentDayIndex].date;
-                syncColorPicker();
+                selectDay(0);
             }
-            renderDaysList();
-            renderCalendar();
         } else {
             alert('Ошибка: ' + data.message);
         }
@@ -614,3 +707,32 @@ function getCookie(name) {
     }
     return cookieValue;
 }
+
+// Side panel resizing logic
+document.addEventListener('DOMContentLoaded', () => {
+    const panel = document.querySelector('.info-panel');
+    const resizer = document.querySelector('.info-panel-resizer');
+
+    if (panel && resizer) {
+        resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            
+            const startX = e.clientX;
+            const startWidth = panel.offsetWidth;
+
+            const onMouseMove = (moveEvent) => {
+                const newWidth = startWidth + (moveEvent.clientX - startX);
+                panel.style.width = `${newWidth}px`;
+            };
+
+            const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    }
+});
+

@@ -119,6 +119,8 @@ body, html {
     left: 0;
     bottom: 0;
     width: 320px;
+    min-width: 200px;
+    max-width: 80vw;
     z-index: 1000;
     background: white;
     padding: 20px;
@@ -127,6 +129,7 @@ body, html {
     overflow-y: auto;
     transition: transform 0.3s ease;
 }
+
 .day-item {
     display: flex;
     align-items: center;
@@ -245,4 +248,27 @@ button {
 }
 .hidden {
     display: none !important;
+}
+
+.info-panel textarea {
+    resize: vertical;
+    min-height: 40px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.info-panel-resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.2s;
+    z-index: 1001;
+}
+
+.info-panel-resizer:hover {
+    background: #007bff;
 }
