@@ -203,6 +203,13 @@ function getLayerName(id) {
     return names[id];
 }
 
+// Helper to get coordinates from a point (which can be [lon, lat] or {lon, lat, ...})
+function getCoords(point) {
+    if (Array.isArray(point)) return point;
+    if (point && typeof point === 'object') return [point.lon, point.lat];
+    return [0, 0];
+}
+
 // Vector source for markers and routes
 const vectorSource = new ol.source.Vector();
 const vectorLayer = new ol.layer.Vector({
@@ -257,7 +264,7 @@ async function updateSegmentDistance() {
         return;
     }
     
-    const coords = routePoints.map(p => p.join(',')).join(';');
+    const coords = routePoints.map(p => getCoords(p).join(',')).join(';');
     const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
     
     try {
@@ -342,6 +349,9 @@ function renderPointsComments() {
         container.style.display = 'flex';
         container.style.flexDirection = 'column';
         container.style.gap = '2px';
+        container.style.paddingBottom = '8px';
+        container.style.borderBottom = '1px solid #eee';
+        container.style.marginBottom = '8px';
         
         const label = document.createElement('label');
         label.style.fontSize = '0.75em';
@@ -357,11 +367,12 @@ function renderPointsComments() {
         input.style.minHeight = '40px';
         
         // Handle point as object {lon, lat, comment} or array [lon, lat]
-        const pointComment = (typeof point === 'object' && !Array.isArray(point)) ? point.comment : '';
+        const isObj = (typeof point === 'object' && !Array.isArray(point));
+        const pointComment = isObj ? point.comment : '';
         input.value = pointComment || '';
         
         input.oninput = (e) => {
-            if (typeof point === 'object' && !Array.isArray(point)) {
+            if (isObj) {
                 point.comment = e.target.value;
             } else {
                 // Convert point from array to object to store comment
@@ -370,9 +381,43 @@ function renderPointsComments() {
                 trip.days[trip.currentDayIndex].points[index] = { lon, lat, comment: e.target.value };
             }
         };
+
+        const refuelContainer = document.createElement('div');
+        refuelContainer.style.display = 'flex';
+        refuelContainer.style.alignItems = 'center';
+        refuelContainer.style.gap = '5px';
+        refuelContainer.style.fontSize = '0.8em';
+        refuelContainer.style.marginTop = '4px';
+
+        const refuelCheckbox = document.createElement('input');
+        refuelCheckbox.type = 'checkbox';
+        refuelCheckbox.id = `refuel-${trip.currentDayIndex}-${index}`;
+        
+        const isRefuel = isObj ? point.isRefuel : false;
+        refuelCheckbox.checked = isRefuel;
+
+        refuelCheckbox.onchange = (e) => {
+            if (isObj) {
+                point.isRefuel = e.target.checked;
+            } else {
+                const lon = point[0];
+                const lat = point[1];
+                trip.days[trip.currentDayIndex].points[index] = { lon, lat, comment: point.comment || '', isRefuel: e.target.checked };
+            }
+            updateRoute();
+        };
+
+        const refuelLabel = document.createElement('label');
+        refuelLabel.htmlFor = refuelCheckbox.id;
+        refuelLabel.innerText = 'Заправка';
+        refuelLabel.style.cursor = 'pointer';
+
+        refuelContainer.appendChild(refuelCheckbox);
+        refuelContainer.appendChild(refuelLabel);
         
         container.appendChild(label);
         container.appendChild(input);
+        container.appendChild(refuelContainer);
         list.appendChild(container);
     });
 }
@@ -422,11 +467,33 @@ function updateMarkersStyle() {
             const color = day ? (day.color || '#000000') : '#000000';
             const isSelected = trip.selectedPoints.some(p => p.dayIndex === dayIndex && p.pointIndex === pointIndex);
             
+            const point = day.points[pointIndex];
+            const isRefuel = (typeof point === 'object' && !Array.isArray(point)) ? point.isRefuel : false;
+            
+            let markerStyle = {
+                radius: isSelected ? 8 : 6,
+                fillColor: color,
+                strokeColor: isSelected ? 'yellow' : 'white',
+                strokeWidth: isSelected ? 3 : 2
+            };
+
+            if (isRefuel) {
+                feature.setStyle(new ol.style.Style({
+                    text: new ol.style.Text({
+                        text: '⛽',
+                        font: '24px Arial',
+                        offsetY: -12,
+                        fill: new ol.style.Fill({ color: '#000' })
+                    })
+                }));
+                return; // Skip the default circle style
+            }
+
             feature.setStyle(new ol.style.Style({
                 image: new ol.style.Circle({
-                    radius: isSelected ? 8 : 6,
-                    fill: new ol.style.Fill({ color: color }),
-                    stroke: new ol.style.Stroke({ color: isSelected ? 'yellow' : 'white', width: isSelected ? 3 : 2 })
+                    radius: markerStyle.radius,
+                    fill: new ol.style.Fill({ color: markerStyle.fillColor }),
+                    stroke: new ol.style.Stroke({ color: markerStyle.strokeColor, width: markerStyle.strokeWidth })
                 })
             }));
         }
@@ -463,7 +530,7 @@ async function updateHighlightedSegment() {
         }
         
         if (segmentPoints.length >= 2) {
-            const segmentCoords = segmentPoints.map(p => p.join(',')).join(';');
+            const segmentCoords = segmentPoints.map(p => getCoords(p).join(',')).join(';');
             const segmentUrl = `https://router.project-osrm.org/route/v1/driving/${segmentCoords}?overview=full&geometries=geojson`;
             try {
                 const segResponse = await fetch(segmentUrl);
@@ -503,7 +570,7 @@ async function updateRoute() {
         }
 
         if (waypoints.length >= 2) {
-            const coordinates = waypoints.map(p => p.join(',')).join(';');
+            const coordinates = waypoints.map(p => getCoords(p).join(',')).join(';');
             const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson`;
 
             try {
@@ -533,7 +600,7 @@ async function updateRoute() {
 
         day.points.forEach((point, pointIndex) => {
             const marker = new ol.Feature({
-                geometry: new ol.geom.Point(ol.proj.fromLonLat(point)),
+                geometry: new ol.geom.Point(ol.proj.fromLonLat(getCoords(point))),
                 dayIndex: dayIndex,
                 pointIndex: pointIndex
             });
