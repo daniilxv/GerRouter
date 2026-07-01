@@ -217,6 +217,86 @@ const vectorLayer = new ol.layer.Vector({
 });
 map.addLayer(vectorLayer);
 
+// Popup for point details
+const popupElement = document.getElementById('point-popup');
+const popupOverlay = new ol.Overlay({
+    element: popupElement,
+    autoPan: true,
+    autoPanAnimation: 'handleAxis'
+});
+map.addOverlay(popupOverlay);
+
+// Popup elements
+const popupPointLabel = document.getElementById('popup-point-label');
+const popupComment = document.getElementById('popup-comment');
+const popupRefuel = document.getElementById('popup-refuel');
+const popupClose = document.getElementById('popup-close');
+
+let currentPopupPoint = null; // { dayIndex, pointIndex }
+
+popupClose.onclick = () => {
+    popupElement.classList.add('hidden');
+    popupOverlay.setPosition(undefined);
+    currentPopupPoint = null;
+};
+
+popupComment.oninput = (e) => {
+    if (currentPopupPoint) {
+        const { dayIndex, pointIndex } = currentPopupPoint;
+        const point = trip.days[dayIndex].points[pointIndex];
+        if (typeof point === 'object' && !Array.isArray(point)) {
+            point.comment = e.target.value;
+        } else {
+            const [lon, lat] = point;
+            trip.days[dayIndex].points[pointIndex] = { lon, lat, comment: e.target.value, isRefuel: false };
+        }
+        updateRoute();
+        renderPointsComments();
+    }
+};
+
+popupRefuel.onchange = (e) => {
+    if (currentPopupPoint) {
+        const { dayIndex, pointIndex } = currentPopupPoint;
+        const point = trip.days[dayIndex].points[pointIndex];
+        if (typeof point === 'object' && !Array.isArray(point)) {
+            point.isRefuel = e.target.checked;
+        } else {
+            const [lon, lat] = point;
+            const comment = (typeof point === 'object' && !Array.isArray(point)) ? point.comment : '';
+            trip.days[dayIndex].points[pointIndex] = { lon, lat, comment: comment, isRefuel: e.target.checked };
+        }
+        updateRoute();
+        updateMarkersStyle();
+        renderPointsComments();
+    }
+};
+
+map.on('singleclick', (event) => {
+    map.forEachFeatureAtPixel(event.pixel, (feature) => {
+        const dayIndex = feature.get('dayIndex');
+        const pointIndex = feature.get('pointIndex');
+
+        if (dayIndex !== undefined && pointIndex !== undefined) {
+            const day = trip.days[dayIndex];
+            const point = day.points[pointIndex];
+            
+            currentPopupPoint = { dayIndex, pointIndex };
+            
+            popupPointLabel.innerText = `Точка ${pointIndex + 1} (День ${dayIndex + 1})`;
+            
+            const isObj = (typeof point === 'object' && !Array.isArray(point));
+            popupComment.value = isObj ? (point.comment || '') : '';
+            popupRefuel.checked = isObj ? (point.isRefuel || false) : false;
+            
+            popupElement.classList.remove('hidden');
+            popupOverlay.setPosition(event.coordinate);
+            
+            return true; // Stop searching
+        }
+    });
+});
+
 const DAY_COLORS = [
     '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
     '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',

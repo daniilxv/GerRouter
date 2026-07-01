@@ -76,6 +76,20 @@
             <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 10px;">
             </div>
         </div>
+    
+        <div id="point-popup" class="point-popup hidden">
+            <div class="popup-content">
+                <div class="popup-header">
+                    <span id="popup-point-label">Точка</span>
+                    <button id="popup-close" class="popup-close">&times;</button>
+                </div>
+                <textarea id="popup-comment" placeholder="Комментарий..."></textarea>
+                <div class="popup-refuel">
+                    <input type="checkbox" id="popup-refuel">
+                    <label for="popup-refuel">Заправка</label>
+                </div>
+            </div>
+        </div>
         <div class="info-panel-resizer"></div>
     </div>
 
