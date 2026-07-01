@@ -611,6 +611,15 @@ async function updateRoute() {
     updateMarkersStyle();
     await updateHighlightedSegment();
     updateUI();
+
+    // Fit map view to the route extent
+    const extent = vectorSource.getExtent();
+    if (extent && extent[0] !== extent[1]) {
+        map.getView().fit(extent, {
+            padding: [50, 50, 50, 50],
+            duration: 1000
+        });
+    }
 }
 
 // Handle map clicks: add point or remove marker
