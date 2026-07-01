@@ -217,6 +217,17 @@ const vectorLayer = new ol.layer.Vector({
 });
 map.addLayer(vectorLayer);
 
+const DAY_COLORS = [
+    '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
+    '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe',
+    '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000',
+    '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080'
+];
+
+function getColorForIndex(index) {
+    return DAY_COLORS[index % DAY_COLORS.length];
+}
+
 var trip = {
     id: null,
     currentDayIndex: -1,
@@ -657,7 +668,13 @@ map.on('singleclick', async function(evt) {
         
         if (trip.currentDayIndex === -1) {
             // Create day only when first point is added
-            trip.days.push({ date: selectedCalendarDate, points: [], distance: 0, color: '#000000' });
+            const newDay = {
+                date: selectedCalendarDate,
+                points: [],
+                distance: 0,
+                color: getColorForIndex(trip.days.length)
+            };
+            trip.days.push(newDay);
             trip.days.sort((a, b) => a.date.localeCompare(b.date));
             trip.currentDayIndex = trip.days.findIndex(d => d.date === selectedCalendarDate);
         }
@@ -755,6 +772,14 @@ async function loadTrip(tripId = null) {
             trip.days = data.days;
             // Ensure days are sorted by date for correct index-based route calculation
             trip.days.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            
+            // Assign default colors to days that don't have one
+            trip.days.forEach((day, index) => {
+                if (!day.color || day.color === '#000000') {
+                    day.color = getColorForIndex(index);
+                }
+            });
+            
             document.getElementById('trip-name').value = data.name;
             await updateRoute();
             if (trip.days.length > 0) {
