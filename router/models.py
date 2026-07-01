@@ -14,6 +14,7 @@ class Day(models.Model):
     trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name='days')
     date = models.DateField(default=datetime.date.today)
     color = models.CharField(max_length=20, blank=True, null=True)
+    comment = models.TextField(blank=True, null=True)
 
     class Meta:
         ordering = ['date']
@@ -26,6 +27,7 @@ class Waypoint(models.Model):
     lat = models.FloatField()
     lon = models.FloatField()
     order = models.IntegerField()
+    comment = models.TextField(blank=True, null=True)
 
     class Meta:
         ordering = ['order']

@@ -57,13 +57,24 @@ def save_trip(request):
                 if not date_str:
                     continue
                 
-                day = Day.objects.create(trip=trip, date=date_str, color=day_data.get('color'))
+                day = Day.objects.create(
+                    trip=trip,
+                    date=date_str,
+                    color=day_data.get('color'),
+                    comment=day_data.get('comment')
+                )
                 for j, point in enumerate(day_data.get('points', [])):
+                    # point can be [lon, lat] or {lon: ..., lat: ..., comment: ...}
+                    lon = point[0] if isinstance(point, list) else point.get('lon')
+                    lat = point[1] if isinstance(point, list) else point.get('lat')
+                    comment = None if isinstance(point, list) else point.get('comment')
+                    
                     Waypoint.objects.create(
                         day=day,
-                        lat=point[1],
-                        lon=point[0],
-                        order=j
+                        lat=lat,
+                        lon=lon,
+                        order=j,
+                        comment=comment
                     )
 
             return JsonResponse({'status': 'success', 'trip_id': trip.id})
@@ -78,11 +89,12 @@ def load_trip(request, trip_id):
         days = []
         for day in trip.days.all():
             waypoints = day.waypoints.all()
-            points = [[wp.lon, wp.lat] for wp in waypoints]
+            points = [{'lon': wp.lon, 'lat': wp.lat, 'comment': wp.comment} for wp in waypoints]
             days.append({
-                'date': day.date.isoformat(),
+                'date': day.date.isoformat() if day.date else None,
                 'points': points,
-                'color': day.color
+                'color': day.color,
+                'comment': day.comment
             })
         
         return JsonResponse({
@@ -92,6 +104,8 @@ def load_trip(request, trip_id):
         })
     except Trip.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Trip not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 def signup(request):
     if request.method == 'POST':
