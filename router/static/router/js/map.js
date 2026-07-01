@@ -617,13 +617,13 @@ async function updateRoute() {
             });
             vectorSource.addFeature(marker);
         });
-    }
-
     updateMarkersStyle();
     await updateHighlightedSegment();
     updateUI();
+}
+}
 
-    // Fit map view to the route extent
+function fitMapToRoute() {
     const extent = vectorSource.getExtent();
     if (extent && extent[0] !== extent[1]) {
         map.getView().fit(extent, {
@@ -782,6 +782,7 @@ async function loadTrip(tripId = null) {
             
             document.getElementById('trip-name').value = data.name;
             await updateRoute();
+            fitMapToRoute();
             if (trip.days.length > 0) {
                 selectDay(0);
             }
