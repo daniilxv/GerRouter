@@ -28,6 +28,7 @@ class Waypoint(models.Model):
     lon = models.FloatField()
     order = models.IntegerField()
     comment = models.TextField(blank=True, null=True)
+    is_refuel = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['order']

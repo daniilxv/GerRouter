@@ -64,17 +64,19 @@ def save_trip(request):
                     comment=day_data.get('comment')
                 )
                 for j, point in enumerate(day_data.get('points', [])):
-                    # point can be [lon, lat] or {lon: ..., lat: ..., comment: ...}
+                    # point can be [lon, lat] or {lon: ..., lat: ..., comment: ..., isRefuel: ...}
                     lon = point[0] if isinstance(point, list) else point.get('lon')
                     lat = point[1] if isinstance(point, list) else point.get('lat')
                     comment = None if isinstance(point, list) else point.get('comment')
+                    is_refuel = False if isinstance(point, list) else point.get('isRefuel', False)
                     
                     Waypoint.objects.create(
                         day=day,
                         lat=lat,
                         lon=lon,
                         order=j,
-                        comment=comment
+                        comment=comment,
+                        is_refuel=is_refuel
                     )
 
             return JsonResponse({'status': 'success', 'trip_id': trip.id})
@@ -89,7 +91,7 @@ def load_trip(request, trip_id):
         days = []
         for day in trip.days.all():
             waypoints = day.waypoints.all()
-            points = [{'lon': wp.lon, 'lat': wp.lat, 'comment': wp.comment} for wp in waypoints]
+            points = [{'lon': wp.lon, 'lat': wp.lat, 'comment': wp.comment, 'isRefuel': wp.is_refuel} for wp in waypoints]
             days.append({
                 'date': day.date.isoformat() if day.date else None,
                 'points': points,
