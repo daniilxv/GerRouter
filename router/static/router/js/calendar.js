@@ -14,17 +14,22 @@ function switchTab(tab) {
     const cal = document.getElementById('calendar-container');
     const list = document.getElementById('days-list');
     const btns = document.querySelectorAll('.tab-btn');
+    const details = document.getElementById('day-details');
     
     if (tab === 'calendar') {
         cal.classList.remove('hidden');
         list.classList.add('hidden');
         btns[0].classList.add('active');
         btns[1].classList.remove('active');
+        if (details) details.classList.add('hidden');
     } else {
         cal.classList.add('hidden');
         list.classList.remove('hidden');
         btns[0].classList.remove('active');
         btns[1].classList.add('active');
+        if (details && trip.currentDayIndex !== -1) {
+            details.classList.remove('hidden');
+        }
     }
 }
 

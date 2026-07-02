@@ -33,9 +33,10 @@ function selectDay(index) {
         day.selectedPoints = [];
     }
     
-    // Show day details and populate comments
+    // Show day details and populate comments only if list tab is active
     const detailsPanel = document.getElementById('day-details');
-    if (detailsPanel) {
+    const listContainer = document.getElementById('days-list');
+    if (detailsPanel && listContainer && !listContainer.classList.contains('hidden')) {
         detailsPanel.classList.remove('hidden');
         const commentInput = document.getElementById('day-comment');
         if (commentInput) {
