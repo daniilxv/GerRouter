@@ -1,14 +1,8 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
-from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.decorators import login_required
-import urllib.request
 import json
-from .models import Trip, Day, Waypoint
-
-from django.http import JsonResponse
-import json
+from ..models import Trip, Day, Waypoint
 
 @login_required
 def map_view(request):
@@ -108,14 +102,3 @@ def load_trip(request, trip_id):
         return JsonResponse({'status': 'error', 'message': 'Trip not found'}, status=404)
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-def signup(request):
-    if request.method == 'POST':
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect('map')
-    else:
-        form = UserCreationForm()
-    return render(request, 'router/signup.html', {'form': form})
